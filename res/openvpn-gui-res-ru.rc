@@ -38,9 +38,9 @@ BEGIN
 END
 
 /* Auth Username/Password Dialog */
-ID_DLG_AUTH DIALOG 6, 18, 180, 95
-STYLE WS_POPUP | WS_VISIBLE | WS_CAPTION | DS_CENTER | DS_SETFOREGROUND
-CAPTION "OpenVPN - Аутентификация пользователя"
+ID_DLG_AUTH DIALOGEX 6, 18, 180, 95
+STYLE WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU | DS_CENTER | DS_SETFOREGROUND
+EXSTYLE WS_EX_TOPMOST
 FONT 8, "Microsoft Sans Serif"
 LANGUAGE LANG_RUSSIAN, SUBLANG_DEFAULT
 BEGIN
@@ -49,9 +49,9 @@ BEGIN
     EDITTEXT ID_EDT_AUTH_USER, 80, 6, 94, 12, ES_AUTOHSCROLL
     EDITTEXT ID_EDT_AUTH_PASS, 80, 23, 94, 12, ES_PASSWORD | ES_AUTOHSCROLL
     CHECKBOX "Запомнить", ID_CHK_SAVE_PASS, 6, 42, 100, 10
-    PUSHBUTTON "OK", IDOK, 30, 58, 50, 14, BS_PUSHBUTTON | WS_TABSTOP | WS_DISABLED
+    PUSHBUTTON "OK", IDOK, 30, 58, 50, 14, BS_DEFPUSHBUTTON | WS_TABSTOP | WS_DISABLED
     PUSHBUTTON "Отмена", IDCANCEL, 100, 58, 52, 14
-    LTEXT "", ID_TXT_WARNING, 6, 74, 180, 10
+    LTEXT "", ID_TXT_WARNING, 6, 80, 180, 10
 END
 
 /* Auth Username/Password/Challenge Dialog */
@@ -96,6 +96,9 @@ FONT 8, "Microsoft Sans Serif"
 LANGUAGE LANG_RUSSIAN, SUBLANG_DEFAULT
 BEGIN
     LTEXT "Подключение…", ID_TXT_STATUS, 20, 5, 200, 10
+    LTEXT "", ID_TXT_BYTECOUNT, 20, 175, 200, 10
+    LTEXT "OpenVPN GUI 11.y.0.0/2.4.x", ID_TXT_VERSION, 220, 175, 150, 10
+    LTEXT "", ID_TXT_IP, 20, 160, 300, 10
     PUSHBUTTON "Отключиться", ID_DISCONNECT, 50, 190, 50, 14
     PUSHBUTTON "Переподключиться", ID_RESTART, 150, 190, 70, 14
     PUSHBUTTON "Скрыть", ID_HIDE, 100, 190, 50, 14
@@ -191,8 +194,6 @@ BEGIN
     EDITTEXT ID_EDT_PRECONNECT_TIMEOUT, 123, 108, 20, 12, ES_AUTOHSCROLL|ES_NUMBER
     EDITTEXT ID_EDT_CONNECT_TIMEOUT, 123, 123, 20, 12, ES_AUTOHSCROLL|ES_NUMBER
     EDITTEXT ID_EDT_DISCONNECT_TIMEOUT, 123, 138, 20, 12, ES_AUTOHSCROLL|ES_NUMBER
-
-    AUTOCHECKBOX "Режим управления службой", ID_CHK_SERVICE_ONLY, 6, 162, 112, 12
 END
 
 /* About Dialog */
@@ -206,14 +207,14 @@ BEGIN
     LTEXT "OpenVPN GUI v" PACKAGE_VERSION_RESOURCE_STR " - графический интерфейс OpenVPN для Windows\n" \
           "Copyright (C) 2004-2005 Mathias Sundman <info@openvpn.se>\n" \
           "Copyright (C) 2008-2014 Heiko Hund <heikoh@users.sf.net>\n" \
-          "Copyright (C) 2012-2016 OpenVPN GUI contributors\n" \
+          "Copyright (C) 2012-" GUI_COPYRIGHT_YEAR_END " OpenVPN GUI contributors\n" \
           "https://github.com/OpenVPN/openvpn-gui/", 0, 36, 15, 206, 50
     LTEXT "OpenVPN - приложение для безопасного туннелирования IP-сетей " \
           "через единственный UDP или TCP-порт с поддержкой аутентификации сессий " \
 	  "и обмена ключами на основе SSL/TLS, шифрования, аутентификации " \
 	  "и сжатия пакетов.\n" \
           "\n" \
-          "Copyright (C) 2002-2016 OpenVPN Technologies, Inc <info@openvpn.net>\n" \
+          "Copyright (C) 2002-" CORE_COPYRIGHT_YEAR_END " OpenVPN Technologies, Inc <info@openvpn.net>\n" \
           "https://openvpn.net/", 0, 8, 70, 240, 64
 END
 
@@ -248,6 +249,7 @@ BEGIN
     IDS_MENU_CLOSE "Выход"
     IDS_MENU_CONNECT "Подключиться"
     IDS_MENU_DISCONNECT "Отключиться"
+    IDS_MENU_RECONNECT "Переподключиться"
     IDS_MENU_STATUS "Отобразить состояние"
     IDS_MENU_VIEWLOG "Показать журнал"
     IDS_MENU_EDITCONFIG "Редактировать конфигурацию"
@@ -328,7 +330,6 @@ BEGIN
     IDS_ERR_CREATE_PATH "Невозможно создать %s путь:\n%s"
     IDS_ERR_LOAD_RICHED20 "Не удалось загрузить RICHED20.DLL."
     IDS_ERR_SHELL_DLL_VERSION "Ваша версия shell32.dll слишком старая (0x%lx). Вам необходима как минимум версия 5.0."
-    IDS_ERR_GUI_ALREADY_RUNNING "OpenVPN GUI уже запущен."
     IDS_NFO_SERVICE_STARTED "Служба OpenVPN запущена."
     IDS_NFO_SERVICE_STOPPED "Служба OpenVPN остановлена."
     IDS_NFO_ACTIVE_CONN_EXIT "Ещё присутствуют активные соединения, которые будут закрыты, если вы выйдите из OpenVPN GUI." \
@@ -453,5 +454,7 @@ BEGIN
 
     IDS_NFO_AUTH_PASS_RETRY "Неправильное имя пользователя или пароль"
     IDS_NFO_KEY_PASS_RETRY  "Неправильный пароль"
+
+    IDS_NFO_AUTO_CONNECT    "Автоматическое подключение через %u сек..."
 
 END

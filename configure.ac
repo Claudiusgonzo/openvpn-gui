@@ -21,10 +21,12 @@ dnl  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 AC_PREREQ(2.59)
 define([_GUI_VERSION_MAJOR], [11])
-define([_GUI_VERSION_MINOR], [9])
+define([_GUI_VERSION_MINOR], [13])
 AC_INIT([OpenVPN GUI],[_GUI_VERSION_MAJOR],[openvpn-devel@lists.sourceforge.net],[openvpn-gui],[https://github.com/openvpn/openvpn-gui/])
 AC_DEFINE([PACKAGE_VERSION_RESOURCE], [_GUI_VERSION_MAJOR,_GUI_VERSION_MINOR,0,0], [Version in windows resource format])
 AC_DEFINE([PACKAGE_VERSION_RESOURCE_STR], ["_GUI_VERSION_MAJOR._GUI_VERSION_MINOR.0.0"], [Version as a string])
+AC_DEFINE([GUI_COPYRIGHT_YEAR_END], ["2018"], [Last copyright year for GUI in About tab])
+AC_DEFINE([CORE_COPYRIGHT_YEAR_END], ["2018"], [Last copyright year for daemon in About tab])
 AC_CONFIG_AUX_DIR([.])
 AM_CONFIG_HEADER([config.h])
 AC_CONFIG_SRCDIR([main.h])
@@ -50,12 +52,6 @@ AC_ARG_ENABLE(
 	,
 	[enable_password_change="yes"]
 )
-
-AC_ARG_VAR([MAX_CONFIGS], [specify the maximum number of configs @<:@default=50@:>@])
-if test -z "$MAX_CONFIGS"; then
-	MAX_CONFIGS=50
-fi
-AC_DEFINE_UNQUOTED([MAX_CONFIGS], [$MAX_CONFIGS], [Maximum number of config files supported.])
 
 case "$host" in
 	*-mingw*)

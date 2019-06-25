@@ -36,9 +36,9 @@ BEGIN
 END
 
 /* Auth Username/Password Dialog */
-ID_DLG_AUTH DIALOG 6, 18, 180, 95
-STYLE WS_POPUP | WS_VISIBLE | WS_CAPTION | DS_CENTER | DS_SETFOREGROUND
-CAPTION "OpenVPN - Перевірка подлінності користувача"
+ID_DLG_AUTH DIALOGEX 6, 18, 180, 95
+STYLE WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU | DS_CENTER | DS_SETFOREGROUND
+EXSTYLE WS_EX_TOPMOST
 FONT 8, "Microsoft Sans Serif"
 LANGUAGE LANG_UKRAINIAN, SUBLANG_DEFAULT
 BEGIN
@@ -47,9 +47,9 @@ BEGIN
     EDITTEXT ID_EDT_AUTH_USER, 80, 6, 94, 12, ES_AUTOHSCROLL
     EDITTEXT ID_EDT_AUTH_PASS, 80, 23, 94, 12, ES_PASSWORD | ES_AUTOHSCROLL
     CHECKBOX "Запам'ятати", ID_CHK_SAVE_PASS, 6, 42, 100, 10
-    PUSHBUTTON "OK", IDOK, 30, 58, 50, 14, BS_PUSHBUTTON | WS_TABSTOP | WS_DISABLED
+    PUSHBUTTON "OK", IDOK, 30, 58, 50, 14, BS_DEFPUSHBUTTON | WS_TABSTOP | WS_DISABLED
     PUSHBUTTON "Скасувати", IDCANCEL, 100, 58, 52, 14
-    LTEXT "", ID_TXT_WARNING, 6, 74, 180, 10
+    LTEXT "", ID_TXT_WARNING, 6, 80, 180, 10
 END
 
 /* Auth Username/Password/Challenge Dialog */
@@ -94,6 +94,9 @@ FONT 8, "Microsoft Sans Serif"
 LANGUAGE LANG_UKRAINIAN, SUBLANG_DEFAULT
 BEGIN
     LTEXT "Підключення…", ID_TXT_STATUS, 20, 5, 200, 10
+    LTEXT "", ID_TXT_BYTECOUNT, 20, 175, 200, 10
+    LTEXT "OpenVPN GUI 11.y.0.0/2.4.x", ID_TXT_VERSION, 220, 175, 150, 10
+    LTEXT "", ID_TXT_IP, 20, 160, 300, 10
     PUSHBUTTON "Від'єднати", ID_DISCONNECT, 50, 190, 50, 14
     PUSHBUTTON "З'єднатися знову", ID_RESTART, 150, 190, 70, 14
     PUSHBUTTON "Звернути", ID_HIDE, 100, 190, 50, 14
@@ -189,8 +192,6 @@ BEGIN
     EDITTEXT ID_EDT_PRECONNECT_TIMEOUT, 123, 108, 20, 12, ES_AUTOHSCROLL|ES_NUMBER
     EDITTEXT ID_EDT_CONNECT_TIMEOUT, 123, 123, 20, 12, ES_AUTOHSCROLL|ES_NUMBER
     EDITTEXT ID_EDT_DISCONNECT_TIMEOUT, 123, 138, 20, 12, ES_AUTOHSCROLL|ES_NUMBER
-
-    AUTOCHECKBOX "Режим керування службою", ID_CHK_SERVICE_ONLY, 6, 162, 112, 12
 END
 
 /* About Dialog */
@@ -204,14 +205,14 @@ BEGIN
     LTEXT "OpenVPN GUI v" PACKAGE_VERSION_RESOURCE_STR " - графічний інтерфейс Windows для OpenVPN\n" \
           "Copyright (C) 2004-2005 Mathias Sundman <info@openvpn.se>\n" \
           "Copyright (C) 2008-2014 Heiko Hund <heikoh@users.sf.net>\n" \
-          "Copyright (C) 2012-2016 OpenVPN GUI contributors\n" \
+          "Copyright (C) 2012-" GUI_COPYRIGHT_YEAR_END " OpenVPN GUI contributors\n" \
           "https://github.com/OpenVPN/openvpn-gui/", 0, 36, 15, 206, 42
     LTEXT "OpenVPN - программне забеспечення, для безпечного тунелювання IP-мереж " \
           "через єдиний UDP або TCP-порт із підтримкой підтверження подлінності сесій " \
       "і пересилкой(обміном) ключів SSL/TLS, шифруванням, аутентіфікацієй " \
       "і з компрессією пакетів.\n" \
           "\n" \
-          "Copyright (C) 2002-2016 OpenVPN Technologies, Inc <info@openvpn.net>\n" \
+          "Copyright (C) 2002-" CORE_COPYRIGHT_YEAR_END " OpenVPN Technologies, Inc <info@openvpn.net>\n" \
           "With support from - За підтримки - При подддержке http://picku.pp.ua/\n" \
           "https://openvpn.net/", 0, 8, 61, 240, 64
 END
@@ -313,7 +314,6 @@ BEGIN
     IDS_ERR_CREATE_PATH "Неможливо зробити новий %s путь:\n%s"
     IDS_ERR_LOAD_RICHED20 "Не вдалося завантижити RICHED20.DLL."
     IDS_ERR_SHELL_DLL_VERSION "Ваша версія shell32.dll занадто стара (0x%lx). Вам необхідно використовувати як мінімум версію файлів 5.0."
-    IDS_ERR_GUI_ALREADY_RUNNING "OpenVPN GUI вже стартував успішно."
     IDS_NFO_SERVICE_STARTED "Служба OpenVPN стартувала."
     IDS_NFO_SERVICE_STOPPED "Служба OpenVPN зупинена."
     IDS_NFO_ACTIVE_CONN_EXIT "Ще є активні з'єднання, які будуть зупинені, якщо ви завершите роботу OpenVPN GUI." \

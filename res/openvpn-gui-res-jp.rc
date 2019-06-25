@@ -39,9 +39,9 @@ BEGIN
 END
 
 /* Auth Username/Password Dialog */
-ID_DLG_AUTH DIALOG 6, 18, 160, 95
-STYLE WS_POPUP | WS_VISIBLE | WS_CAPTION | DS_CENTER | DS_SETFOREGROUND
-CAPTION "OpenVPN - ユーザー認証"
+ID_DLG_AUTH DIALOGEX 6, 18, 160, 95
+STYLE WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU | DS_CENTER | DS_SETFOREGROUND
+EXSTYLE WS_EX_TOPMOST
 FONT 8, "Microsoft Sans Serif"
 LANGUAGE LANG_JAPANESE, SUBLANG_DEFAULT
 BEGIN
@@ -50,9 +50,9 @@ BEGIN
     EDITTEXT ID_EDT_AUTH_USER, 60, 6, 94, 12, ES_AUTOHSCROLL
     EDITTEXT ID_EDT_AUTH_PASS, 60, 23, 94, 12, ES_PASSWORD | ES_AUTOHSCROLL
     CHECKBOX "Save password", ID_CHK_SAVE_PASS, 6, 42, 100, 10
-    PUSHBUTTON "OK", IDOK, 20, 58, 50, 14, BS_PUSHBUTTON | WS_TABSTOP | WS_DISABLED
+    PUSHBUTTON "OK", IDOK, 20, 58, 50, 14, BS_DEFPUSHBUTTON | WS_TABSTOP | WS_DISABLED
     PUSHBUTTON "キャンセル", IDCANCEL, 90, 58, 52, 14
-    LTEXT "", ID_TXT_WARNING, 6, 74, 150, 10
+    LTEXT "", ID_TXT_WARNING, 6, 80, 150, 10
 END
 
 /* Auth Username/Password/Challenge Dialog */
@@ -96,6 +96,9 @@ FONT 8, "Microsoft Sans Serif"
 LANGUAGE LANG_JAPANESE, SUBLANG_DEFAULT
 BEGIN
     LTEXT "接続中…", ID_TXT_STATUS, 20, 5, 200, 10
+    LTEXT "", ID_TXT_BYTECOUNT, 20, 175, 200, 10
+    LTEXT "OpenVPN GUI 11.y.0.0/2.4.x", ID_TXT_VERSION, 220, 175, 150, 10
+    LTEXT "", ID_TXT_IP, 20, 160, 300, 10
     PUSHBUTTON "切断", ID_DISCONNECT, 50, 190, 50, 14
     PUSHBUTTON "再接続", ID_RESTART, 150, 190, 50, 14
     PUSHBUTTON "隠す", ID_HIDE, 100, 190, 50, 14
@@ -190,8 +193,6 @@ BEGIN
     EDITTEXT ID_EDT_PRECONNECT_TIMEOUT, 143, 108, 20, 12, ES_AUTOHSCROLL|ES_NUMBER
     EDITTEXT ID_EDT_CONNECT_TIMEOUT, 143, 123, 20, 12, ES_AUTOHSCROLL|ES_NUMBER
     EDITTEXT ID_EDT_DISCONNECT_TIMEOUT, 143, 138, 20, 12, ES_AUTOHSCROLL|ES_NUMBER
-
-    AUTOCHECKBOX "サービスのみのモードを有効にする", ID_CHK_SERVICE_ONLY, 6, 162, 200, 12
 END
 
 /* About Dialog */
@@ -205,14 +206,14 @@ BEGIN
     LTEXT "OpenVPN GUI v" PACKAGE_VERSION_RESOURCE_STR " - A Windows GUI for OpenVPN\n" \
           "Copyright (C) 2004-2005 Mathias Sundman <info@openvpn.se>\n" \
           "Copyright (C) 2008-2014 Heiko Hund <heikoh@users.sf.net>\n" \
-          "Copyright (C) 2012-2016 OpenVPN GUI contributors\n" \
+          "Copyright (C) 2012-" GUI_COPYRIGHT_YEAR_END " OpenVPN GUI contributors\n" \
           "https://github.com/OpenVPN/openvpn-gui/", 0, 36, 15, 206, 42
     LTEXT "OpenVPN - An application to securely tunnel IP networks " \
           "over a single TCP/UDP port, with support for SSL/TLS-based " \
           "session authentication and key exchange, packet " \
           "encryption, packet authentication, and packet compression.\n" \
           "\n" \
-          "Copyright (C) 2002-2016 OpenVPN Technologies, Inc <info@openvpn.net>\n" \
+          "Copyright (C) 2002-" CORE_COPYRIGHT_YEAR_END " OpenVPN Technologies, Inc <info@openvpn.net>\n" \
           "https://openvpn.net/", 0, 8, 61, 240, 64
 END
 
@@ -312,7 +313,6 @@ BEGIN
     IDS_ERR_OPEN_DEBUG_FILE "デバッグファイル (%s) を出力用に開くときにエラーが発生しました。"
     IDS_ERR_LOAD_RICHED20 "RICHED20.DLL が読み込めません。"
     IDS_ERR_SHELL_DLL_VERSION "shell32.dll のバージョンが古いです (0x%lx). バージョン 5.0 以降に更新してください。"
-    IDS_ERR_GUI_ALREADY_RUNNING "OpenVPN GUIは既に実行されています。"
     IDS_NFO_SERVICE_STARTED "OpenVPNサービスが開始されました。"
     IDS_NFO_SERVICE_STOPPED "OpenVPNサービスが停止されました。"
     IDS_NFO_ACTIVE_CONN_EXIT "OpenVPN GUIを終了すると、現在接続中の接続が切断されます。" \

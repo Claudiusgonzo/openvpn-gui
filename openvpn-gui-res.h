@@ -42,6 +42,9 @@
 #define ID_DISCONNECT                    163
 #define ID_RESTART                       164
 #define ID_HIDE                          165
+#define ID_TXT_VERSION                   166
+#define ID_TXT_BYTECOUNT                 168
+#define ID_TXT_IP                        169
 
 /* Change Passphrase Dialog */
 #define ID_DLG_CHGPASS                   170
@@ -85,7 +88,7 @@
 #define ID_CMB_LANGUAGE                  231
 #define ID_TXT_LANGUAGE                  232
 #define ID_CHK_STARTUP                   233
-#define ID_CHK_SERVICE_ONLY              234
+/* historic: #define ID_CHK_SERVICE_ONLY              234 */
 #define ID_TXT_LOG_APPEND                235
 #define ID_CHK_LOG_APPEND                236
 #define ID_CHK_SILENT                    237
@@ -149,6 +152,7 @@
 #define IDS_MENU_ASK_STOP_SERVICE       1022
 #define IDS_MENU_IMPORT                 1023
 #define IDS_MENU_CLEARPASS              1024
+#define IDS_MENU_RECONNECT              1025
 
 /* LogViewer Dialog */
 #define IDS_ERR_START_LOG_VIEWER        1101
@@ -204,17 +208,19 @@
 #define IDS_ERR_CONFIG_TRY_AUTHORIZE    1255
 #define IDS_NFO_CONFIG_AUTH_PENDING     1256
 #define IDS_ERR_ADD_USER_TO_ADMIN_GROUP 1257
+#define IDS_NFO_BYTECOUNT               1258
 
 /* Program Startup Related */
 #define IDS_ERR_OPEN_DEBUG_FILE         1301
 #define IDS_ERR_LOAD_RICHED20           1302
 #define IDS_ERR_SHELL_DLL_VERSION       1303
-#define IDS_ERR_GUI_ALREADY_RUNNING     1304
+/* historic: #define IDS_ERR_GUI_ALREADY_RUNNING     1304 */
 #define IDS_NFO_SERVICE_STARTED         1305
 #define IDS_NFO_SERVICE_STOPPED         1306
 #define IDS_NFO_ACTIVE_CONN_EXIT        1307
 #define IDS_NFO_SERVICE_ACTIVE_EXIT     1308
 #define IDS_ERR_CREATE_PATH             1309
+#define IDS_NFO_CLICK_HERE_TO_START     1310
 
 /* Program Options Related */
 #define IDS_NFO_USAGE                   1401
@@ -305,10 +311,15 @@
 /* Token password dialog related */
 #define IDS_NFO_TOKEN_PASSWORD_CAPTION  2100
 #define IDS_NFO_TOKEN_PASSWORD_REQUEST  2101
+#define IDS_NFO_AUTO_CONNECT            2102
 
 /* Password retry messages */
 #define IDS_NFO_AUTH_PASS_RETRY         2150
 #define IDS_NFO_KEY_PASS_RETRY          2151
+
+/* Invalid input errors */
+#define IDS_ERR_INVALID_PASSWORD_INPUT  2152
+#define IDS_ERR_INVALID_USERNAME_INPUT  2153
 
 /* Timer IDs */
 #define IDT_STOP_TIMER                  2500  /* Timer used to trigger force termination */

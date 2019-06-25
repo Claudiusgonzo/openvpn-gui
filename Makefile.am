@@ -63,6 +63,7 @@ openvpn_gui_RESOURCES = \
 	res/openvpn-gui-res-se.rc \
 	res/openvpn-gui-res-tr.rc \
 	res/openvpn-gui-res-ua.rc \
+	res/openvpn-gui-res-zh-hans.rc \
 	res/openvpn-gui-res-zh-hant.rc \
 	res/connected.ico \
 	res/connecting.ico \
@@ -92,6 +93,7 @@ openvpn_gui_SOURCES = \
 	access.c access.h \
 	chartable.h \
 	save_pass.c save_pass.h \
+	env_set.c env_set.h \
 	openvpn-gui-res.h
 
 openvpn_gui_LDFLAGS = -mwindows

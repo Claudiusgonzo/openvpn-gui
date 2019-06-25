@@ -33,6 +33,7 @@
 #include <process.h>
 #include <richedit.h>
 #include <time.h>
+#include <commctrl.h>
 
 #include "tray.h"
 #include "main.h"
@@ -48,9 +49,7 @@
 #include "misc.h"
 #include "access.h"
 #include "save_pass.h"
-
-#define WM_OVPN_STOP    (WM_APP + 10)
-#define WM_OVPN_SUSPEND (WM_APP + 11)
+#include "env_set.h"
 
 extern options_t o;
 
@@ -76,9 +75,6 @@ typedef struct {
 } auth_param_t;
 
 static void
-WriteStatusLog (connection_t *c, const WCHAR *prefix, const WCHAR *line, BOOL fileio);
-
-static void
 free_auth_param (auth_param_t *param)
 {
     if (!param)
@@ -100,6 +96,22 @@ AppendTextToCaption (HANDLE hwnd, const WCHAR *str)
 }
 
 /*
+ * Show an error tooltip with msg attached to the specified
+ * editbox handle.
+ */
+static void
+show_error_tip(HWND editbox, const WCHAR *msg)
+{
+    EDITBALLOONTIP bt;
+    bt.cbStruct = sizeof(EDITBALLOONTIP);
+    bt.pszText = msg;
+    bt.pszTitle = L"Invalid input";
+    bt.ttiIcon = TTI_ERROR_LARGE;
+
+    SendMessage(editbox, EM_SHOWBALLOONTIP, 0, (LPARAM)&bt);
+}
+
+/*
  * Receive banner on connection to management interface
  * Format: <BANNER>
  */
@@ -109,6 +121,7 @@ OnReady(connection_t *c, UNUSED char *msg)
     ManagementCommand(c, "state on", NULL, regular);
     ManagementCommand(c, "log all on", OnLogLine, combined);
     ManagementCommand(c, "echo all on", OnEcho, combined);
+    ManagementCommand(c, "bytecount 5", NULL, regular);
 }
 
 
@@ -186,6 +199,47 @@ OnLogLine(connection_t *c, char *line)
     SendMessage(logWnd, EM_REPLACESEL, FALSE, (LPARAM) _T("\n"));
 }
 
+/* expect ipv4,remote,port,,,ipv6 */
+static void
+parse_assigned_ip(connection_t *c, const char *msg)
+{
+    char *sep;
+    CLEAR(c->ip);
+    CLEAR(c->ipv6);
+
+    /* extract local ipv4 address if available*/
+    sep = strchr(msg, ',');
+    if (sep == NULL)
+        return;
+
+    /* Convert the IP address to Unicode */
+    if (sep - msg > 0
+        && MultiByteToWideChar(CP_UTF8, 0, msg, sep-msg, c->ip, _countof(c->ip)-1) == 0)
+    {
+        WriteStatusLog(c, L"GUI> ", L"Failed to extract the assigned ipv4 address (error = %d)",
+                       GetLastError());
+        c->ip[0] = L'\0';
+    }
+
+    /* extract local ipv6 address if available */
+
+    /* skip 4 commas */
+    for (int i = 0; i < 4 && sep; i++)
+    {
+        sep = strchr(sep + 1, ',');
+    }
+    if (!sep)
+        return;
+
+    sep++; /* start of ipv6 address */
+    /* Convert the IP address to Unicode */
+    if (MultiByteToWideChar(CP_UTF8, 0, sep, -1, c->ipv6, _countof(c->ipv6)-1) == 0)
+    {
+        WriteStatusLog(c, L"GUI> ", L"Failed to extract the assigned ipv6 address (error = %d)",
+                       GetLastError());
+        c->ipv6[0] = L'\0';
+    }
+}
 
 /*
  * Handle a state change notification from the OpenVPN management interface
@@ -213,20 +267,21 @@ OnStateChange(connection_t *c, char *data)
         return;
     *pos = '\0';
 
+    if (strcmp(state, "CONNECTED") == 0)
+    {
+        parse_assigned_ip(c, pos + 1);
+    }
     if (strcmp(state, "CONNECTED") == 0 && strcmp(message, "SUCCESS") == 0)
     {
+        /* concatenate ipv4 and ipv6 addresses into one string */
+        WCHAR ip_txt[256];
+        WCHAR ip[64];
+        wcs_concat2(ip, _countof(ip), c->ip, c->ipv6, L", ");
+        LoadLocalizedStringBuf(ip_txt, _countof(ip_txt), IDS_NFO_ASSIGN_IP, ip);
+
         /* Run Connect Script */
         if (c->state == connecting || c->state == resuming)
             RunConnectScript(c, false);
-
-        /* Save the local IP address if available */
-        char *local_ip = pos + 1;
-        pos = strchr(local_ip, ',');
-        if (pos != NULL)
-            *pos = '\0';
-
-        /* Convert the IP address to Unicode */
-        MultiByteToWideChar(CP_UTF8, 0, local_ip, -1, c->ip, _countof(c->ip));
 
         /* Show connection tray balloon */
         if ((c->state == connecting   && o.show_balloon != 0)
@@ -235,7 +290,7 @@ OnStateChange(connection_t *c, char *data)
         {
             TCHAR msg[256];
             LoadLocalizedStringBuf(msg, _countof(msg), IDS_NFO_NOW_CONNECTED, c->config_name);
-            ShowTrayBalloon(msg, (_tcslen(c->ip) ? LoadLocalizedString(IDS_NFO_ASSIGN_IP, c->ip) : _T("")));
+            ShowTrayBalloon(msg, (ip[0] ? ip_txt : _T("")));
         }
 
         /* Save time when we got connected. */
@@ -248,6 +303,7 @@ OnStateChange(connection_t *c, char *data)
         SetTrayIcon(connected);
 
         SetDlgItemText(c->hwndStatus, ID_TXT_STATUS, LoadLocalizedString(IDS_NFO_STATE_CONNECTED));
+        SetDlgItemTextW(c->hwndStatus, ID_TXT_IP, ip_txt);
         SetStatusWinIcon(c->hwndStatus, ID_ICO_CONNECTED);
 
         /* Hide Status Window */
@@ -261,19 +317,96 @@ OnStateChange(connection_t *c, char *data)
                 c->failed_auth_attempts++;
             else if (strcmp(message, "private-key-password-failure") == 0)
                 c->failed_psw_attempts++;
-
-            if (strcmp(message, "auth-failure") == 0 && (c->flags & FLAG_SAVE_AUTH_PASS))
-                SaveAuthPass(c->config_name, L""); /* clear saved password */
-
-            else if (strcmp(message, "private-key-password-failure") == 0 && (c->flags & FLAG_SAVE_KEY_PASS))
-                SaveKeyPass(c->config_name, L"");  /* clear saved private key password */
         }
 
         c->state = reconnecting;
         CheckAndSetTrayIcon();
 
         SetDlgItemText(c->hwndStatus, ID_TXT_STATUS, LoadLocalizedString(IDS_NFO_STATE_RECONNECTING));
+        SetDlgItemTextW(c->hwndStatus, ID_TXT_IP, L"");
         SetStatusWinIcon(c->hwndStatus, ID_ICO_CONNECTING);
+    }
+}
+
+static void
+SimulateButtonPress(HWND hwnd, UINT btn)
+{
+    SendMessage(hwnd, WM_COMMAND, MAKEWPARAM(btn, BN_CLICKED), (LPARAM)GetDlgItem(hwnd, btn));
+}
+
+/* A private struct to keep autoclose parameters */
+typedef struct autoclose {
+    UINT start;    /* start time in msec */
+    UINT timeout;  /* timeout in msec at which autoclose triggers */
+    UINT btn;      /* button which is 'pressed' for autoclose */
+    UINT txtid;    /* id of a text control to display an informaltional message */
+    UINT txtres;   /* resource id of localized text to use for message:
+                      LoadLocalizedString(txtid, time_remaining_in_seconds)
+                      is used to generate the message */
+    COLORREF txtclr;  /* color for message text */
+} autoclose;
+
+/* Cancel scheduled auto close of a dialog */
+static void
+AutoCloseCancel(HWND hwnd)
+{
+    autoclose *ac = (autoclose *)GetProp(hwnd, L"AutoClose");
+    if (!ac)
+        return;
+
+    if (ac->txtid)
+        SetDlgItemText(hwnd, ac->txtid, L"");
+    KillTimer(hwnd, 1);
+    RemoveProp(hwnd, L"AutoClose");
+    free(ac);
+}
+
+/* Called when autoclose timer expires. */
+static void CALLBACK
+AutoCloseHandler(HWND hwnd, UINT UNUSED msg, UINT_PTR id, DWORD now)
+{
+    autoclose *ac = (autoclose *)GetProp(hwnd, L"AutoClose");
+    if (!ac)
+        return;
+
+    UINT end = ac->start + ac->timeout;
+    if (now >= end)
+    {
+        SimulateButtonPress(hwnd, ac->btn);
+        AutoCloseCancel(hwnd);
+    }
+    else
+    {
+        SetDlgItemText(hwnd, ac->txtid, LoadLocalizedString(ac->txtres, (end - now)/1000));
+        SetTimer(hwnd, id, 500, AutoCloseHandler);
+    }
+}
+
+/* Schedule an event to automatically activate specified btn after timeout seconds.
+ * Used for automatically closing a dialog after some delay unless user interrupts.
+ * Optionally a txtid and txtres resource may be specified to display a message.
+ * %u in the message is replaced by time remaining before timeout will trigger.
+ * Call AutoCloseCancel to cancel the scheduled event and clear the displayed
+ * text.
+ */
+static void
+AutoCloseSetup(HWND hwnd, UINT btn, UINT timeout, UINT txtid, UINT txtres)
+{
+    if (timeout == 0)
+        SimulateButtonPress(hwnd, btn);
+    else
+    {
+        autoclose *ac = GetPropW(hwnd, L"AutoClose"); /* reuse if set */
+        if (!ac && (ac = malloc(sizeof(autoclose))) == NULL)
+            return;
+
+        *ac = (autoclose) {.start = GetTickCount(), .timeout = timeout*1000, .btn = btn,
+                  .txtid = txtid, .txtres = txtres, .txtclr = GetSysColor(COLOR_WINDOWTEXT)};
+
+        SetTimer(hwnd, 1, 500, AutoCloseHandler); /* using timer id = 1 */
+        if (txtid && txtres)
+            SetDlgItemText(hwnd, txtid, LoadLocalizedString(txtres, timeout));
+        SetPropW(hwnd, L"AutoClose", (HANDLE) ac);
     }
 }
 
@@ -284,8 +417,8 @@ INT_PTR CALLBACK
 UserAuthDialogFunc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     auth_param_t *param;
-    WCHAR username[USER_PASS_LEN];
-    WCHAR password[USER_PASS_LEN];
+    WCHAR username[USER_PASS_LEN] = L"";
+    WCHAR password[USER_PASS_LEN] = L"";
 
     switch (msg)
     {
@@ -293,6 +426,7 @@ UserAuthDialogFunc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
         /* Set connection for this dialog and show it */
         param = (auth_param_t *) lParam;
         SetProp(hwndDlg, cfgProp, (HANDLE) param);
+        SetStatusWinIcon(hwndDlg, ID_ICO_APP);
 
         if (param->str)
         {
@@ -320,6 +454,22 @@ UserAuthDialogFunc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
         if (RecallAuthPass(param->c->config_name, password))
         {
             SetDlgItemTextW(hwndDlg, ID_EDT_AUTH_PASS, password);
+            if (username[0] != L'\0' && !(param->flags & FLAG_CR_TYPE_SCRV1)
+                && password[0] != L'\0' && param->c->failed_auth_attempts == 0)
+            {
+               /* user/pass available and no challenge response needed: skip dialog
+                * if silent_connection is on, else auto submit after a few seconds.
+                * User can interrupt.
+                */
+                SetFocus(GetDlgItem(hwndDlg, IDOK));
+                UINT timeout = o.silent_connection ? 0 : 6; /* in seconds */
+                AutoCloseSetup(hwndDlg, IDOK, timeout, ID_TXT_WARNING, IDS_NFO_AUTO_CONNECT);
+            }
+            /* if auth failed, highlight password so that user can type over */
+            else if (param->c->failed_auth_attempts)
+            {
+                SendMessage(GetDlgItem(hwndDlg, ID_EDT_AUTH_PASS), EM_SETSEL, 0, MAKELONG(0,-1));
+            }
             SecureZeroMemory(password, sizeof(password));
         }
         if (param->c->flags & FLAG_DISABLE_SAVE_PASS)
@@ -327,7 +477,7 @@ UserAuthDialogFunc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
         else if (param->c->flags & FLAG_SAVE_AUTH_PASS)
             Button_SetCheck(GetDlgItem (hwndDlg, ID_CHK_SAVE_PASS), BST_CHECKED);
 
-        AppendTextToCaption (hwndDlg, param->c->config_name);
+        SetWindowText (hwndDlg, param->c->config_name);
         if (param->c->failed_auth_attempts > 0)
             SetDlgItemTextW(hwndDlg, ID_TXT_WARNING, LoadLocalizedString(IDS_NFO_AUTH_PASS_RETRY));
 
@@ -336,6 +486,14 @@ UserAuthDialogFunc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
         else
             SetForegroundWindow(hwndDlg);
 
+        break;
+
+    case WM_LBUTTONDOWN:
+    case WM_RBUTTONDOWN:
+    case WM_NCLBUTTONDOWN:
+    case WM_NCRBUTTONDOWN:
+        /* user interrupt */
+        AutoCloseCancel(hwndDlg);
         break;
 
     case WM_COMMAND:
@@ -348,6 +506,11 @@ UserAuthDialogFunc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
                 int len = Edit_GetTextLength((HWND) lParam);
                 EnableWindow(GetDlgItem(hwndDlg, IDOK), (len ? TRUE : FALSE));
             }
+            AutoCloseCancel(hwndDlg); /* user interrupt */
+            break;
+
+        case ID_EDT_AUTH_PASS:
+            AutoCloseCancel(hwndDlg); /* user interrupt */
             break;
 
         case ID_CHK_SAVE_PASS:
@@ -359,18 +522,31 @@ UserAuthDialogFunc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
                 DeleteSavedAuthPass(param->c->config_name);
                 Button_SetCheck(GetDlgItem (hwndDlg, ID_CHK_SAVE_PASS), BST_UNCHECKED);
             }
+            AutoCloseCancel(hwndDlg); /* user interrupt */
             break;
 
         case IDOK:
             if (GetDlgItemTextW(hwndDlg, ID_EDT_AUTH_USER, username, _countof(username)))
             {
+                if (!validate_input(username, L"\n"))
+                {
+                    show_error_tip(GetDlgItem(hwndDlg, ID_EDT_AUTH_USER), LoadLocalizedString(IDS_ERR_INVALID_USERNAME_INPUT));
+                    return 0;
+                }
                 SaveUsername(param->c->config_name, username);
             }
-            if ( param->c->flags & FLAG_SAVE_AUTH_PASS &&
-                 GetDlgItemTextW(hwndDlg, ID_EDT_AUTH_PASS, password, _countof(password)) &&
-                 wcslen(password) )
+            if (GetDlgItemTextW(hwndDlg, ID_EDT_AUTH_PASS, password, _countof(password)))
             {
-                SaveAuthPass(param->c->config_name, password);
+                if (!validate_input(password, L"\n"))
+                {
+                    show_error_tip(GetDlgItem(hwndDlg, ID_EDT_AUTH_PASS), LoadLocalizedString(IDS_ERR_INVALID_PASSWORD_INPUT));
+                    SecureZeroMemory(password, sizeof(password));
+                    return 0;
+                }
+                if ( param->c->flags & FLAG_SAVE_AUTH_PASS && wcslen(password) )
+                {
+                    SaveAuthPass(param->c->config_name, password);
+                }
                 SecureZeroMemory(password, sizeof(password));
             }
             ManagementCommandFromInput(param->c, "username \"Auth\" \"%s\"", hwndDlg, ID_EDT_AUTH_USER);
@@ -391,19 +567,27 @@ UserAuthDialogFunc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
     case WM_CTLCOLORSTATIC:
         if (GetDlgCtrlID((HWND) lParam) == ID_TXT_WARNING)
         {
+            autoclose *ac = (autoclose *)GetProp(hwndDlg, L"AutoClose");
             HBRUSH br = (HBRUSH) DefWindowProc(hwndDlg, msg, wParam, lParam);
-            SetTextColor((HDC) wParam, o.clr_warning);
+            /* This text id is used for auth failure warning or autoclose message. Use appropriate color */
+            COLORREF clr = o.clr_warning;
+            if (ac && ac->txtid == ID_TXT_WARNING)
+                clr = ac->txtclr;
+            SetTextColor((HDC) wParam, clr);
             return (INT_PTR) br;
         }
         break;
 
     case WM_CLOSE:
         EndDialog(hwndDlg, LOWORD(wParam));
+        param = (auth_param_t *) GetProp(hwndDlg, cfgProp);
+        StopOpenVPN(param->c);
         return TRUE;
 
     case WM_NCDESTROY:
         param = (auth_param_t *) GetProp(hwndDlg, cfgProp);
         free_auth_param (param);
+        AutoCloseCancel(hwndDlg);
         RemoveProp(hwndDlg, cfgProp);
         break;
     }
@@ -418,6 +602,7 @@ INT_PTR CALLBACK
 GenericPassDialogFunc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     auth_param_t *param;
+    WCHAR password[USER_PASS_LEN];
 
     switch (msg)
     {
@@ -467,6 +652,13 @@ GenericPassDialogFunc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
         switch (LOWORD(wParam))
         {
         case IDOK:
+            if (GetDlgItemTextW(hwndDlg, ID_EDT_RESPONSE, password, _countof(password))
+                && !validate_input(password, L"\n"))
+            {
+                show_error_tip(GetDlgItem(hwndDlg, ID_EDT_RESPONSE), LoadLocalizedString(IDS_ERR_INVALID_PASSWORD_INPUT));
+                SecureZeroMemory(password, sizeof(password));
+                return 0;
+            }
             if (param->flags & FLAG_CR_TYPE_CRV1)
             {
                 /* send username */
@@ -549,7 +741,8 @@ PrivKeyPassDialogFunc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
         c = (connection_t *) lParam;
         SetProp(hwndDlg, cfgProp, (HANDLE) c);
         AppendTextToCaption (hwndDlg, c->config_name);
-        if (RecallKeyPass(c->config_name, passphrase) && wcslen(passphrase))
+        if (RecallKeyPass(c->config_name, passphrase) && wcslen(passphrase)
+            && c->failed_psw_attempts == 0)
         {
             /* Use the saved password and skip the dialog */
             SetDlgItemTextW(hwndDlg, ID_EDT_PASSPHRASE, passphrase);
@@ -586,11 +779,18 @@ PrivKeyPassDialogFunc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
             break;
 
         case IDOK:
-            if ((c->flags & FLAG_SAVE_KEY_PASS) &&
-                GetDlgItemTextW(hwndDlg, ID_EDT_PASSPHRASE, passphrase, _countof(passphrase)) &&
-                wcslen(passphrase) > 0)
+            if (GetDlgItemTextW(hwndDlg, ID_EDT_PASSPHRASE, passphrase, _countof(passphrase)))
             {
-                SaveKeyPass(c->config_name, passphrase);
+                if (!validate_input(passphrase, L"\n"))
+                {
+                    show_error_tip(GetDlgItem(hwndDlg, ID_EDT_PASSPHRASE), LoadLocalizedString(IDS_ERR_INVALID_PASSWORD_INPUT));
+                    SecureZeroMemory(passphrase, sizeof(passphrase));
+                    return 0;
+                }
+                if ((c->flags & FLAG_SAVE_KEY_PASS) && wcslen(passphrase) > 0)
+                {
+                    SaveKeyPass(c->config_name, passphrase);
+                }
                 SecureZeroMemory(passphrase, sizeof(passphrase));
             }
             ManagementCommandFromInput(c, "password \"Private Key\" \"%s\"", hwndDlg, ID_EDT_PASSPHRASE);
@@ -750,7 +950,7 @@ out:
 void
 OnEcho(connection_t *c, char *msg)
 {
-    WCHAR errmsg[256];
+    time_t timestamp = strtoul(msg, NULL, 10); /* openvpn prints these as %u */
 
     PrintDebug(L"OnEcho with msg = %S", msg);
     if (!(msg = strchr(msg, ',')))
@@ -759,18 +959,26 @@ OnEcho(connection_t *c, char *msg)
         return;
     }
     msg++;
-
     if (strcmp(msg, "forget-passwords") == 0)
     {
         DeleteSavedPasswords(c->config_name);
     }
     else if (strcmp(msg, "save-passwords") == 0)
     {
-        c->flags |= (FLAG_SAVE_KEY_PASS | FLAG_SAVE_AUTH_PASS);
+        if (c->flags & FLAG_DISABLE_SAVE_PASS)
+            WriteStatusLog(c, L"GUI> echo save-passwords: ",
+               L"Ignored as disable_save_passwords is enabled.", false);
+        else
+            c->flags |= (FLAG_SAVE_KEY_PASS | FLAG_SAVE_AUTH_PASS);
+    }
+    else if (strbegins(msg, "setenv "))
+    {
+        process_setenv(c, timestamp, msg);
     }
     else
     {
-        _sntprintf_0(errmsg, L"WARNING: Unknown ECHO directive '%S' ignored.", msg);
+        wchar_t errmsg[256];
+        _sntprintf_0(errmsg, L"WARNING: Unknown ECHO directive '%hs' ignored.", msg);
         WriteStatusLog(c, L"GUI> ", errmsg, false);
     }
 }
@@ -973,6 +1181,51 @@ OnStop(connection_t *c, UNUSED char *msg)
     }
 }
 
+/* Convert bytecount c to a human readable string.
+ * Input c converted to a string of the form "nnn.. (xxx.y XiB)"
+ * where X is K, M, G, T, P or E depending on the count. The result
+ * is returned in buf up to max of len - 1 wide characters.
+ * Return value: pointer to buf.
+ */
+static wchar_t *
+format_bytecount(wchar_t *buf, size_t len, unsigned long long c)
+{
+    const char *suf[] = {"B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", NULL};
+    const char **s = suf;
+    double x = c;
+
+    if (c <= 1024)
+    {
+        swprintf(buf, len, L"%I64u B", c);
+        buf[len-1] = L'\0';
+        return buf;
+    }
+    while (x > 1024 && *(s+1))
+    {
+        x /= 1024.0;
+        s++;
+    }
+    swprintf(buf, len, L"%I64u (%.1f %hs)", c, x, *s);
+    buf[len-1] = L'\0';
+
+    return buf;
+}
+
+/*
+ * Handle bytecount report from OpenVPN
+ * Expect bytes-in,bytes-out
+ */
+void OnByteCount(connection_t *c, char *msg)
+{
+    if (!msg || sscanf(msg, "%I64u,%I64u", &c->bytes_in, &c->bytes_out) != 2)
+        return;
+    wchar_t in[32], out[32];
+    format_bytecount(in, _countof(in), c->bytes_in);
+    format_bytecount(out, _countof(out), c->bytes_out);
+    SetDlgItemTextW(c->hwndStatus, ID_TXT_BYTECOUNT,
+            LoadLocalizedString(IDS_NFO_BYTECOUNT, in, out));
+}
+
 /*
  * Break a long line into shorter segments
  */
@@ -1002,7 +1255,7 @@ WrapLine (WCHAR *line)
 /*
  * Write a line to the status log window and optionally to the log file
  */
-static void
+void
 WriteStatusLog (connection_t *c, const WCHAR *prefix, const WCHAR *line, BOOL fileio)
 {
     HWND logWnd = GetDlgItem(c->hwndStatus, ID_EDT_LOG);
@@ -1173,7 +1426,8 @@ OnService(connection_t *c, UNUSED char *msg)
     }
 
     p = buf + 11;
-    if (!err && swscanf (p, L"0x%08x\nProcess ID", &pid) == 1 && pid != 0)
+    /* next line is the pid if followed by "\nProcess ID" */
+    if (!err && wcsstr(p, L"\nProcess ID") && swscanf (p, L"0x%08x", &pid) == 1 && pid != 0)
     {
         PrintDebug (L"Process ID of openvpn started by IService: %d", pid);
         c->hProcess = OpenProcess (PROCESS_TERMINATE|PROCESS_QUERY_INFORMATION, FALSE, pid);
@@ -1303,6 +1557,8 @@ Cleanup (connection_t *c)
     CloseManagement (c);
 
     free_dynamic_cr (c);
+    env_item_del_all(c->es);
+    c->es = NULL;
 
     if (c->hProcess)
         CloseHandle (c->hProcess);
@@ -1322,8 +1578,11 @@ Cleanup (connection_t *c)
 void
 RenderStatusWindow(HWND hwndDlg, UINT w, UINT h)
 {
-        MoveWindow(GetDlgItem(hwndDlg, ID_EDT_LOG), DPI_SCALE(20), DPI_SCALE(25), w - DPI_SCALE(40), h - DPI_SCALE(70), TRUE);
-        MoveWindow(GetDlgItem(hwndDlg, ID_TXT_STATUS), DPI_SCALE(20), DPI_SCALE(5), w - DPI_SCALE(25), DPI_SCALE(15), TRUE);
+        MoveWindow(GetDlgItem(hwndDlg, ID_EDT_LOG), DPI_SCALE(20), DPI_SCALE(25), w - DPI_SCALE(40), h - DPI_SCALE(110), TRUE);
+        MoveWindow(GetDlgItem(hwndDlg, ID_TXT_STATUS), DPI_SCALE(20), DPI_SCALE(5), w-DPI_SCALE(30), DPI_SCALE(15), TRUE);
+        MoveWindow(GetDlgItem(hwndDlg, ID_TXT_IP), DPI_SCALE(20), h - DPI_SCALE(75), w-DPI_SCALE(30), DPI_SCALE(15), TRUE);
+        MoveWindow(GetDlgItem(hwndDlg, ID_TXT_BYTECOUNT), DPI_SCALE(20), h - DPI_SCALE(55), w-DPI_SCALE(210), DPI_SCALE(15), TRUE);
+        MoveWindow(GetDlgItem(hwndDlg, ID_TXT_VERSION), w-DPI_SCALE(180), h - DPI_SCALE(55), DPI_SCALE(170), DPI_SCALE(15), TRUE);
         MoveWindow(GetDlgItem(hwndDlg, ID_DISCONNECT), DPI_SCALE(20), h - DPI_SCALE(30), DPI_SCALE(110), DPI_SCALE(23), TRUE);
         MoveWindow(GetDlgItem(hwndDlg, ID_RESTART), DPI_SCALE(145), h - DPI_SCALE(30), DPI_SCALE(110), DPI_SCALE(23), TRUE);
         MoveWindow(GetDlgItem(hwndDlg, ID_HIDE), w - DPI_SCALE(130), h - DPI_SCALE(30), DPI_SCALE(110), DPI_SCALE(23), TRUE);
@@ -1375,6 +1634,11 @@ StatusDialogFunc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
         if (SendMessage(hLogWnd, EM_SETCHARFORMAT, SCF_DEFAULT, (LPARAM) &cfm) == 0)
             ShowLocalizedMsg(IDS_ERR_SET_SIZE);
 
+        /* display version string as "OpenVPN GUI gui_version/core_version" */
+        wchar_t version[256];
+        _sntprintf_0(version, L"%S %S/%S", PACKAGE_NAME, PACKAGE_VERSION_RESOURCE_STR, o.ovpn_version)
+        SetDlgItemText(hwndDlg, ID_TXT_VERSION, version);
+
         /* Set size and position of controls */
         RECT rect;
         GetClientRect(hwndDlg, &rect);
@@ -1407,7 +1671,7 @@ StatusDialogFunc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
         case ID_RESTART:
             c->state = reconnecting;
             SetFocus(GetDlgItem(c->hwndStatus, ID_EDT_LOG));
-            ManagementCommand(c, "signal SIGHUP", NULL, regular);
+            RestartOpenVPN(c);
             return TRUE;
         }
         break;
@@ -1439,6 +1703,9 @@ StatusDialogFunc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 
     case WM_OVPN_STOP:
         c = (connection_t *) GetProp(hwndDlg, cfgProp);
+        /* external messages can trigger when we are not ready -- check the state */
+        if (!IsWindowEnabled(GetDlgItem(c->hwndStatus, ID_DISCONNECT)))
+            break;
         c->state = disconnecting;
         RunDisconnectScript(c, false);
         EnableWindow(GetDlgItem(c->hwndStatus, ID_DISCONNECT), FALSE);
@@ -1446,7 +1713,7 @@ StatusDialogFunc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
         SetMenuStatus(c, disconnecting);
         SetDlgItemText(c->hwndStatus, ID_TXT_STATUS, LoadLocalizedString(IDS_NFO_STATE_WAIT_TERM));
         SetEvent(c->exit_event);
-        SetTimer(hwndDlg, IDT_STOP_TIMER, 3000, NULL);
+        SetTimer(hwndDlg, IDT_STOP_TIMER, 15000, NULL);
         break;
 
     case WM_OVPN_SUSPEND:
@@ -1457,7 +1724,7 @@ StatusDialogFunc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
         SetMenuStatus(c, disconnecting);
         SetDlgItemText(c->hwndStatus, ID_TXT_STATUS, LoadLocalizedString(IDS_NFO_STATE_WAIT_TERM));
         SetEvent(c->exit_event);
-        SetTimer(hwndDlg, IDT_STOP_TIMER, 3000, NULL);
+        SetTimer(hwndDlg, IDT_STOP_TIMER, 15000, NULL);
         break;
 
     case WM_TIMER:
@@ -1468,6 +1735,18 @@ StatusDialogFunc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
             /* openvpn failed to respond to stop signal -- terminate */
             TerminateOpenVPN(c);
             KillTimer (hwndDlg, IDT_STOP_TIMER);
+        }
+        break;
+
+    case WM_OVPN_RESTART:
+        c = (connection_t *) GetProp(hwndDlg, cfgProp);
+        /* external messages can trigger when we are not ready -- check the state */
+        if (IsWindowEnabled(GetDlgItem(c->hwndStatus, ID_RESTART)))
+            ManagementCommand(c, "signal SIGHUP", NULL, regular);
+        if (!o.silent_connection)
+        {
+            SetForegroundWindow(c->hwndStatus);
+            ShowWindow(c->hwndStatus, SW_SHOW);
         }
         break;
     }
@@ -1591,12 +1870,19 @@ StartOpenVPN(connection_t *c)
 
     if (c->hwndStatus)
     {
-        PrintDebug(L"Connection request when previous status window is still open -- ignored");
-        WriteStatusLog(c, L"OpenVPN GUI> ",
-                       L"Complete the pending dialog before starting a new connection", false);
-        SetForegroundWindow(c->hwndStatus);
+        PrintDebug(L"Connection request when already started -- ignored");
+        /* the tread can hang around after disconnect if user has not dismissed any popups */
+        if (c->state == disconnected)
+            WriteStatusLog(c, L"OpenVPN GUI> ",
+                       L"Complete any pending dialog before starting a new connection", false);
+        if (!o.silent_connection)
+        {
+           SetForegroundWindow(c->hwndStatus);
+           ShowWindow(c->hwndStatus, SW_SHOW);
+        }
         return FALSE;
     }
+    PrintDebug(L"Starting openvpn on config %s", c->config_name);
 
     RunPreconnectScript(c);
 
@@ -1645,8 +1931,13 @@ StartOpenVPN(connection_t *c)
 
         c->hProcess = NULL;
         c->manage.password[sizeof(c->manage.password) - 1] = '\n';
-        _sntprintf_0(startup_info, _T("%s%c%s%c%.*S"), c->config_dir, _T('\0'),
-            options, _T('\0'), sizeof(c->manage.password), c->manage.password);
+
+        /* Ignore pushed route-method when service is in use */
+        const wchar_t *extra_options = L" --pull-filter ignore route-method";
+        size += wcslen(extra_options);
+
+        _sntprintf_0(startup_info, L"%s%c%s%s%c%.*S", c->config_dir, L'\0',
+            options, extra_options, L'\0', sizeof(c->manage.password), c->manage.password);
         c->manage.password[sizeof(c->manage.password) - 1] = '\0';
 
         if (!WritePipe(c->iserv.pipe, startup_info, size * sizeof (TCHAR)))
@@ -1797,6 +2088,14 @@ SuspendOpenVPN(int config)
     PostMessage(o.conn[config].hwndStatus, WM_OVPN_SUSPEND, 0, 0);
 }
 
+void
+RestartOpenVPN(connection_t *c)
+{
+    if (c->hwndStatus)
+        PostMessage(c->hwndStatus, WM_OVPN_RESTART, 0, 0);
+    else /* Not started: treat this as a request to connect */
+        StartOpenVPN(c);
+}
 
 void
 SetStatusWinIcon(HWND hwndDlg, int iconId)

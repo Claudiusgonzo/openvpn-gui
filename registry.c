@@ -60,7 +60,8 @@ struct regkey_int {
       {L"connectscript_timeout", &o.connectscript_timeout, 30},
       {L"disconnectscript_timeout", &o.disconnectscript_timeout, 10},
       {L"show_script_window", &o.show_script_window, 0},
-      {L"service_only", &o.service_only, 0}
+      {L"service_only", &o.service_only, 0},
+      {L"config_menu_view", &o.config_menu_view, CONFIG_VIEW_AUTO}
     };
 
 static int
@@ -74,64 +75,65 @@ GetGlobalRegistryKeys()
 {
   TCHAR windows_dir[MAX_PATH];
   TCHAR openvpn_path[MAX_PATH];
-  TCHAR profile_dir[MAX_PATH];
   HKEY regkey;
 
   if (!GetWindowsDirectory(windows_dir, _countof(windows_dir))) {
     /* can't get windows dir */
     ShowLocalizedMsg(IDS_ERR_GET_WINDOWS_DIR);
-    return(false);
+    /* Use a default value */
+    _sntprintf_0(windows_dir, L"C:\\Windows");
   }
 
-  if (SHGetFolderPath(NULL, CSIDL_PROFILE, NULL, SHGFP_TYPE_CURRENT, profile_dir) != S_OK) {
-    ShowLocalizedMsg(IDS_ERR_GET_PROFILE_DIR);
-    return(false);
-  }
+  /* set default editor and log_viewer as a fallback for opening config/log files */
+  _sntprintf_0(o.editor, L"%s\\%s", windows_dir, L"System32\\notepad.exe");
+  _sntprintf_0(o.log_viewer, L"%s", o.editor);
 
   /* Get path to OpenVPN installation. */
   if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, _T("SOFTWARE\\OpenVPN"), 0, KEY_READ, &regkey)
       != ERROR_SUCCESS)
     {
       /* registry key not found */
+      regkey = NULL;
       ShowLocalizedMsg(IDS_ERR_OPEN_REGISTRY);
-      return(false);
     }
-  if (!GetRegistryValue(regkey, _T(""), openvpn_path, _countof(openvpn_path)))
+  if (!regkey || !GetRegistryValue(regkey, _T(""), openvpn_path, _countof(openvpn_path)))
     {
       /* error reading registry value */
-      ShowLocalizedMsg(IDS_ERR_READING_REGISTRY);
-      RegCloseKey(regkey);
-      return(false);
+      if (regkey)
+          ShowLocalizedMsg(IDS_ERR_READING_REGISTRY);
+      /* Use a sane default value */
+      _sntprintf_0(openvpn_path, _T("%s"), _T("C:\\Program Files\\OpenVPN\\"));
     }
   if (openvpn_path[_tcslen(openvpn_path) - 1] != _T('\\'))
     _tcscat(openvpn_path, _T("\\"));
 
   /* an admin-defined global config dir defined in HKLM\OpenVPN\config_dir */
-  if (!GetRegistryValue(regkey, _T("config_dir"), o.global_config_dir, _countof(o.global_config_dir)))
+  if (!regkey || !GetRegistryValue(regkey, _T("config_dir"), o.global_config_dir, _countof(o.global_config_dir)))
     {
       /* use default = openvpnpath\config */
       _sntprintf_0(o.global_config_dir, _T("%sconfig"), openvpn_path);
     }
 
-  if (!GetRegistryValue(regkey, _T("ovpn_admin_group"), o.ovpn_admin_group, _countof(o.ovpn_admin_group)))
+  if (!regkey || !GetRegistryValue(regkey, _T("ovpn_admin_group"), o.ovpn_admin_group, _countof(o.ovpn_admin_group)))
     {
       _tcsncpy(o.ovpn_admin_group, OVPN_ADMIN_GROUP, _countof(o.ovpn_admin_group)-1);
     }
 
-  if (!GetRegistryValue(regkey, _T("exe_path"), o.exe_path, _countof(o.exe_path)))
+  if (!regkey || !GetRegistryValue(regkey, _T("exe_path"), o.exe_path, _countof(o.exe_path)))
     {
       _sntprintf_0(o.exe_path, _T("%sbin\\openvpn.exe"), openvpn_path);
     }
 
-  if (!GetRegistryValue(regkey, _T("priority"), o.priority_string, _countof(o.priority_string)))
+  if (!regkey || !GetRegistryValue(regkey, _T("priority"), o.priority_string, _countof(o.priority_string)))
     {
       _tcsncpy(o.priority_string, _T("NORMAL_PRIORITY_CLASS"), _countof(o.priority_string)-1);
     }
-  if (!GetRegistryValueNumeric(regkey, _T("disable_save_passwords"), &o.disable_save_passwords))
+  if (!regkey || !GetRegistryValueNumeric(regkey, _T("disable_save_passwords"), &o.disable_save_passwords))
   {
       o.disable_save_passwords = 0;
   }
-  RegCloseKey(regkey);
+  if (regkey)
+      RegCloseKey(regkey);
   return true;
 }
 

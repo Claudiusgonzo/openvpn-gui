@@ -28,15 +28,21 @@ BOOL ManagementCommandFromInputBase64(connection_t *, LPCSTR, HWND, int, int);
 BOOL EnsureDirExists(LPTSTR);
 
 BOOL streq(LPCSTR, LPCSTR);
+BOOL strbegins(const char *str, const char *begin);
 BOOL wcsbegins(LPCWSTR, LPCWSTR);
 
 BOOL ForceForegroundWindow(HWND);
 
 BOOL IsUserAdmin(VOID);
-HANDLE InitSemaphore (void);
+HANDLE InitSemaphore (WCHAR *);
 BOOL CheckFileAccess (const TCHAR *path, int access);
 
 BOOL Base64Encode(const char *input, int input_len, char **output);
 int Base64Decode(const char *input, char **output);
 WCHAR *Widen(const char *utf8);
+BOOL validate_input(const WCHAR *input, const WCHAR *exclude);
+/* Concatenate two wide strings with a separator */
+void wcs_concat2(WCHAR *dest, int len, const WCHAR *src1, const WCHAR *src2, const WCHAR *sep);
+void CloseSemaphore(HANDLE sem);
+
 #endif
