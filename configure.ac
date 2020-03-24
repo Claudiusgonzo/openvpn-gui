@@ -2,7 +2,6 @@ dnl  OpenVPN-GUI -- A Windows GUI for OpenVPN.
 dnl
 dnl  Copyright (C) 2004 Mathias Sundman <mathias@nilings.se>
 dnl                2010 Heiko Hund <heikoh@users.sf.net>
-dnl  Portions Copyright (C) 2018 Microsoft Corporation
 dnl
 dnl  This program is free software; you can redistribute it and/or modify
 dnl  it under the terms of the GNU General Public License as published by
@@ -30,13 +29,10 @@ AC_DEFINE([CORE_COPYRIGHT_YEAR_END], ["2018"], [Last copyright year for daemon i
 AC_CONFIG_AUX_DIR([.])
 AM_CONFIG_HEADER([config.h])
 AC_CONFIG_SRCDIR([main.h])
-AC_CONFIG_MACRO_DIRS([m4])
 AM_INIT_AUTOMAKE
 AC_CANONICAL_HOST
 AC_USE_SYSTEM_EXTENSIONS
 AC_PROG_CC_C99
-LT_INIT([win32-dll])
-AC_LIBTOOL_WIN32_DLL
 AC_CHECK_TOOL([WINDRES], [windres])
 
 AC_ARG_ENABLE(
