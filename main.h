@@ -59,6 +59,7 @@
 #define WM_OVPN_EXIT           (WM_APP + 17)
 #define WM_OVPN_SILENT         (WM_APP + 18)
 #define WM_OVPN_IMPORT         (WM_APP + 20)
+#define WM_OVPN_RESCAN         (WM_APP + 21)
 
 /* bool definitions */
 #define bool int
@@ -66,8 +67,13 @@
 #define false 0
 
 /* GCC function attributes */
+#ifdef _MSC_VER
+#define UNUSED
+#define NORETURN
+#else
 #define UNUSED __attribute__ ((unused))
 #define NORETURN __attribute__ ((noreturn))
+#endif
 
 #define PACKVERSION(major,minor) MAKELONG(minor,major)
 struct security_attributes
