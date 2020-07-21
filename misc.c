@@ -44,6 +44,7 @@ BOOL
 Base64Encode(const char *input, int input_len, char **output)
 {
     DWORD output_len;
+    DWORD flags = CRYPT_STRING_BASE64|CRYPT_STRING_NOCRLF;
 
     if (input_len == 0)
     {
@@ -52,7 +53,7 @@ Base64Encode(const char *input, int input_len, char **output)
         return TRUE;
     }
     if (!CryptBinaryToStringA((const BYTE *) input, (DWORD) input_len,
-        CRYPT_STRING_BASE64, NULL, &output_len) || output_len == 0)
+        flags, NULL, &output_len) || output_len == 0)
     {
 #ifdef DEBUG
         PrintDebug (L"Error in CryptBinaryToStringA: input = '%.*S'", input_len, input);
@@ -65,7 +66,7 @@ Base64Encode(const char *input, int input_len, char **output)
         return FALSE;
 
     if (!CryptBinaryToStringA((const BYTE *) input, (DWORD) input_len,
-        CRYPT_STRING_BASE64, *output, &output_len))
+        flags, *output, &output_len))
     {
 #ifdef DEBUG
         PrintDebug (L"Error in CryptBinaryToStringA: input = '%.*S'", input_len, input);
@@ -74,12 +75,6 @@ Base64Encode(const char *input, int input_len, char **output)
         *output = NULL;
         return FALSE;
     }
-    /* Trim trailing "\r\n" manually.
-       Actually they can be stripped by adding CRYPT_STRING_NOCRLF to dwFlags,
-       but Windows XP/2003 does not support this flag. */
-    if(output_len > 1 && (*output)[output_len - 1] == '\x0A'
-        && (*output)[output_len - 2] == '\x0D')
-        (*output)[output_len - 2] = 0;
 
     return TRUE;
 }
@@ -349,6 +344,12 @@ streq(LPCSTR str1, LPCSTR str2)
 }
 
 BOOL
+strbegins(const char *str, const char *begin)
+{
+    return (strncmp(str, begin, strlen(begin)) == 0);
+}
+
+BOOL
 wcsbegins(LPCWSTR str, LPCWSTR begin)
 {
     return (wcsncmp(str, begin, wcslen(begin)) == 0);
@@ -396,10 +397,10 @@ BOOL IsUserAdmin(VOID)
 }
 
 HANDLE
-InitSemaphore (void)
+InitSemaphore (WCHAR *name)
 {
     HANDLE semaphore = NULL;
-    semaphore = CreateSemaphore (NULL, 1, 1, NULL);
+    semaphore = CreateSemaphore (NULL, 1, 1, name);
     if (!semaphore)
     {
         MessageBoxW (NULL, L"Error creating semaphore", TEXT(PACKAGE_NAME), MB_OK);
@@ -408,6 +409,16 @@ InitSemaphore (void)
 #endif
     }
     return semaphore;
+}
+
+void
+CloseSemaphore(HANDLE sem)
+{
+    if (sem)
+    {
+        ReleaseSemaphore(sem, 1, NULL);
+    }
+    CloseHandle(sem);
 }
 
 /* Check access rights on an existing file */
@@ -452,4 +463,44 @@ Widen(const char *utf8)
     }
 
     return wstr;
+}
+
+/* Return false if input contains any characters in exclude */
+BOOL
+validate_input(const WCHAR *input, const WCHAR *exclude)
+{
+    if (!exclude)
+        exclude = L"\n";
+    return (wcspbrk(input, exclude) == NULL);
+}
+
+/* Concatenate two wide strings with a separator -- if either string is empty separator not added */
+void
+wcs_concat2(WCHAR *dest, int len, const WCHAR *src1, const WCHAR *src2, const WCHAR *sep)
+{
+    int n = 0;
+
+    if (!dest || len == 0)
+        return;
+
+    if (src1 && src2 && src1[0] && src2[0])
+        n = swprintf(dest, len, L"%s%s%s", src1, sep, src2);
+    else if (src1 && src1[0])
+        n = swprintf(dest, len, L"%s", src1);
+    else if (src2 && src2[0])
+        n = swprintf(dest, len, L"%s", src2);
+
+    if (n < 0 || n >= len) /*swprintf failed */
+        n = 0;
+    dest[n] = L'\0';
+}
+
+void
+CloseHandleEx(LPHANDLE handle)
+{
+    if (handle && *handle && *handle != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(*handle);
+        *handle = INVALID_HANDLE_VALUE;
+    }
 }

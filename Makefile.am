@@ -2,7 +2,6 @@
 #
 #  Copyright (C) 2004 Mathias Sundman <mathias@nilings.se>
 #                2010 Heiko Hund <heikoh@users.sf.net>
-#  Portions Copyright (C) 2018 Microsoft Corporation
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -23,7 +22,6 @@ RCCOMPILE = $(WINDRES) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
     $(AM_CPPFLAGS) $(CPPFLAGS)
 
 AUTOMAKE_OPTIONS = foreign 1.9
-ACLOCAL_AMFLAGS = -I m4
 
 MAINTAINERCLEANFILES = \
 	config.log config.status \
@@ -63,6 +61,7 @@ openvpn_gui_RESOURCES = \
 	res/openvpn-gui-res-se.rc \
 	res/openvpn-gui-res-tr.rc \
 	res/openvpn-gui-res-ua.rc \
+	res/openvpn-gui-res-zh-hans.rc \
 	res/openvpn-gui-res-zh-hant.rc \
 	res/connected.ico \
 	res/connecting.ico \
@@ -92,6 +91,7 @@ openvpn_gui_SOURCES = \
 	access.c access.h \
 	chartable.h \
 	save_pass.c save_pass.h \
+	env_set.c env_set.h \
 	openvpn-gui-res.h
 
 openvpn_gui_LDFLAGS = -mwindows
@@ -106,13 +106,7 @@ openvpn_gui_LDADD = \
 	-lnetapi32 \
 	-lole32 \
 	-lshlwapi \
-	-lsecur32 \
-	-lrasapi32
+	-lsecur32
 
 openvpn-gui-res.o: $(openvpn_gui_RESOURCES) $(srcdir)/openvpn-gui-res.h
 	$(RCCOMPILE) -i $< -o $@
-
-lib_LTLIBRARIES              = libopenvpndialer.la
-libopenvpndialer_la_SOURCES  = dialer.c
-libopenvpndialer_la_LDFLAGS  = -no-undefined
-libopenvpndialer_la_LIBADD   = -lrasapi32

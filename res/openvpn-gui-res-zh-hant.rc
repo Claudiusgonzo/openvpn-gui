@@ -39,9 +39,9 @@ BEGIN
 END
 
 /* Auth Username/Password Dialog */
-ID_DLG_AUTH DIALOG 6, 18, 160, 95
-STYLE WS_POPUP | WS_VISIBLE | WS_CAPTION | DS_CENTER | DS_SETFOREGROUND
-CAPTION "OpenVPN - 使用者驗證"
+ID_DLG_AUTH DIALOGEX 6, 18, 160, 95
+STYLE WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU | DS_CENTER | DS_SETFOREGROUND
+EXSTYLE WS_EX_TOPMOST
 FONT 8, "Microsoft Sans Serif"
 LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_TRADITIONAL
 BEGIN
@@ -50,9 +50,9 @@ BEGIN
     EDITTEXT ID_EDT_AUTH_USER, 60, 6, 94, 12, ES_AUTOHSCROLL
     EDITTEXT ID_EDT_AUTH_PASS, 60, 23, 94, 12, ES_PASSWORD | ES_AUTOHSCROLL
     CHECKBOX "儲存密碼", ID_CHK_SAVE_PASS, 6, 42, 100, 10
-    PUSHBUTTON "確認", IDOK, 20, 58, 50, 14, BS_PUSHBUTTON | WS_TABSTOP | WS_DISABLED
+    PUSHBUTTON "確認", IDOK, 20, 58, 50, 14, BS_DEFPUSHBUTTON | WS_TABSTOP | WS_DISABLED
     PUSHBUTTON "取消", IDCANCEL, 90, 58, 52, 14
-    LTEXT "", ID_TXT_WARNING, 6, 74, 150, 10
+    LTEXT "", ID_TXT_WARNING, 6, 80, 150, 10
 END
 
 /* Auth Username/Password/Challenge Dialog */
@@ -97,6 +97,9 @@ FONT 8, "Microsoft Sans Serif"
 LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_TRADITIONAL
 BEGIN
     LTEXT "連線中…", ID_TXT_STATUS, 20, 5, 200, 10
+    LTEXT "", ID_TXT_BYTECOUNT, 20, 175, 200, 10
+    LTEXT "OpenVPN GUI 11.y.0.0/2.4.x", ID_TXT_VERSION, 220, 175, 150, 10
+    LTEXT "", ID_TXT_IP, 20, 160, 300, 10
     PUSHBUTTON "斷線", ID_DISCONNECT, 50, 190, 50, 14
     PUSHBUTTON "重新連線", ID_RESTART, 150, 190, 50, 14
     PUSHBUTTON "隱藏", ID_HIDE, 100, 190, 50, 14
@@ -192,8 +195,6 @@ BEGIN
     EDITTEXT ID_EDT_PRECONNECT_TIMEOUT, 103, 108, 20, 12, ES_AUTOHSCROLL|ES_NUMBER
     EDITTEXT ID_EDT_CONNECT_TIMEOUT, 103, 123, 20, 12, ES_AUTOHSCROLL|ES_NUMBER
     EDITTEXT ID_EDT_DISCONNECT_TIMEOUT, 103, 138, 20, 12, ES_AUTOHSCROLL|ES_NUMBER
-
-    AUTOCHECKBOX "僅使用系統服務", ID_CHK_SERVICE_ONLY, 6, 162, 100, 12
 END
 
 /* About Dialog */
@@ -207,14 +208,14 @@ BEGIN
     LTEXT "OpenVPN GUI v" PACKAGE_VERSION_RESOURCE_STR " - OpenVPN 的 Windows 圖形化介面\n" \
           "版權所有 (C) 2004-2005 Mathias Sundman <info@openvpn.se>\n" \
           "版權所有 (C) 2008-2014 Heiko Hund <heikoh@users.sf.net>\n" \
-          "版權所有 (C) 2012-2016 OpenVPN GUI 貢獻者\n" \
+          "版權所有 (C) 2012-" GUI_COPYRIGHT_YEAR_END " OpenVPN GUI 貢獻者\n" \
           "https://github.com/OpenVPN/openvpn-gui/", 0, 36, 15, 206, 42
     LTEXT "OpenVPN 是一套可安全地透過單一 TCP/UDP 通訊埠穿隧 IP 網路" \
           "的應用程式。支援以 SSL/TLS 為基礎的連線驗證與金鑰交換" \
           "、封包加密、封包驗證，以及封包壓縮。" \
           "\n" \
           "\n" \
-          "版權所有 (C) 2002-2016 OpenVPN Technologies, Inc <info@openvpn.net>\n" \
+          "版權所有 (C) 2002-" CORE_COPYRIGHT_YEAR_END " OpenVPN Technologies, Inc <info@openvpn.net>\n" \
           "https://openvpn.net/", 0, 8, 61, 234, 64
 END
 
@@ -330,7 +331,6 @@ BEGIN
     IDS_ERR_CREATE_PATH "無法建立 %s 路徑:\n%s"
     IDS_ERR_LOAD_RICHED20 "無法載入 RICHED20.DLL。"
     IDS_ERR_SHELL_DLL_VERSION "您的 shell32.dll 版本太舊 (0x%lx)，需要至少 5.0 版本或更新版。"
-    IDS_ERR_GUI_ALREADY_RUNNING "OpenVPN GUI 已在執行中。"
     IDS_NFO_SERVICE_STARTED "已啟動 OpenVPN 服務。"
     IDS_NFO_SERVICE_STOPPED "已停止 OpenVPN 服務。"
     IDS_NFO_ACTIVE_CONN_EXIT "目前還有進行中的連線，若您結束 OpenVPN GUI 該連線將被中斷。" \

@@ -26,6 +26,7 @@
 BOOL StartOpenVPN(connection_t *);
 void StopOpenVPN(connection_t *);
 void SuspendOpenVPN(int config);
+void RestartOpenVPN(connection_t *);
 BOOL CheckVersion();
 void SetStatusWinIcon(HWND hwndDlg, int IconID);
 
@@ -38,6 +39,7 @@ void OnStop(connection_t *, char *);
 void OnNeedOk(connection_t *, char *);
 void OnNeedStr(connection_t *, char *);
 void OnEcho(connection_t *, char *);
+void OnByteCount(connection_t *, char *);
 
 void ResetSavePasswords(connection_t *);
 
@@ -48,5 +50,8 @@ extern const TCHAR *cfgProp;
 #define ERROR_STARTUP_DATA 0x20000001
 #define ERROR_MESSAGE_DATA 0x20000002
 #define ERROR_MESSAGE_TYPE 0x20000003
+
+/* Write a line to status window and optionally to the log file */
+void WriteStatusLog (connection_t *c, const WCHAR *prefix, const WCHAR *line, BOOL fileio);
 
 #endif

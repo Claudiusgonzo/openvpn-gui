@@ -327,6 +327,11 @@ OnManagement(SOCKET sk, LPARAM lParam)
                     if (rtmsg_handler[echo])
                         rtmsg_handler[echo](c, pos + 5);
                 }
+                else if (strncmp(pos, "BYTECOUNT:", 10) == 0)
+                {
+                    if (rtmsg_handler[bytecount])
+                        rtmsg_handler[bytecount](c, pos + 10);
+                }
             }
             else if (c->manage.cmd_queue)
             {
@@ -340,6 +345,12 @@ OnManagement(SOCKET sk, LPARAM lParam)
                 }
                 else if (strncmp(line, "ERROR:", 6) == 0)
                 {
+                    /* Response sent to management is not processed. Log an error in status window  */
+                    char buf[256];
+                    _snprintf_0(buf, "%lld,N,Previous command sent to management failed: %s",
+                                (long long)time(NULL), line)
+                    rtmsg_handler[log](c, buf);
+
                     if (cmd->handler)
                         cmd->handler(c, NULL);
                     UnqueueCommand(c);

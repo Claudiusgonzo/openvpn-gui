@@ -22,9 +22,7 @@ their dependencies. You can install these packages using the standard
 - pkg-config
 - make
 - mingw64-x86_64-gcc-core
-- mingw64-x86_64-g++
 - mingw64-x86_64-openssl
-- libtool
 
 
 Build

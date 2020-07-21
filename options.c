@@ -85,6 +85,10 @@ add_option(options_t *options, int i, TCHAR **p)
     {
         TCHAR caption[200];
         TCHAR msg[USAGE_BUF_SIZE];
+        /* We only print help and exit: release the semaphore to allow another instance */
+        CloseSemaphore(o.session_semaphore); /* OK to call even if semaphore is NULL */
+        o.session_semaphore = NULL;
+
         LoadLocalizedStringBuf(caption, _countof(caption), IDS_NFO_USAGECAPTION);
         LoadLocalizedStringBuf(msg, _countof(msg), IDS_NFO_USAGE);
         MessageBoxEx(NULL, msg, caption, MB_OK | MB_SETFOREGROUND, GetGUILanguage());
@@ -93,14 +97,26 @@ add_option(options_t *options, int i, TCHAR **p)
     else if (streq(p[0], _T("connect")) && p[1])
     {
         ++i;
-        static int auto_connect_nr = 0;
-        if (auto_connect_nr == MAX_CONFIGS)
+        if (!options->auto_connect || options->num_auto_connect == options->max_auto_connect)
         {
-            /* Too many configs */
-            ShowLocalizedMsg(IDS_ERR_MANY_CONFIGS, MAX_CONFIGS);
-            exit(1);
+            options->max_auto_connect += 10;
+            void *tmp = realloc(options->auto_connect, sizeof(wchar_t *)*options->max_auto_connect);
+            if (!tmp)
+            {
+                options->max_auto_connect -= 10;
+                ErrorExit(1, L"Out of memory while parsing command line");
+            }
+            options->auto_connect = tmp;
         }
-        options->auto_connect[auto_connect_nr++] = p[1];
+        options->auto_connect[options->num_auto_connect++] = p[1];
+        /* Treat the first connect option to also mean --command connect profile.
+         * This gets used if we are not the first instance.
+         */
+        if (options->num_auto_connect == 1)
+        {
+            options->action = WM_OVPN_START;
+            options->action_arg = p[1];
+        }
     }
     else if (streq(p[0], _T("exe_path")) && p[1])
     {
@@ -203,6 +219,65 @@ add_option(options_t *options, int i, TCHAR **p)
         ++i;
         options->preconnectscript_timeout = _ttoi(p[1]);
     }
+    else if (streq(p[0], _T("config_menu_view")) && p[1])
+    {
+        ++i;
+        options->config_menu_view = _ttoi(p[1]);
+    }
+    else if (streq(p[0], _T("command")) && p[1])
+    {
+        ++i;
+        /* command to be sent to a running instance */
+        if (streq(p[1], _T("connect")) && p[2])
+        {
+            /* Treat this as "--connect profile" in case this is the first instance */
+            add_option(options, i, &p[1]);
+            ++i;
+            options->action = WM_OVPN_START;
+            options->action_arg = p[2];
+        }
+        else if (streq(p[1], _T("disconnect")) && p[2])
+        {
+            ++i;
+            options->action = WM_OVPN_STOP;
+            options->action_arg = p[2];
+        }
+        else if (streq(p[1], _T("reconnect")) && p[2])
+        {
+            ++i;
+            options->action = WM_OVPN_RESTART;
+            options->action_arg = p[2];
+        }
+        else if (streq(p[1], _T("status")) && p[2])
+        {
+            ++i;
+            options->action = WM_OVPN_SHOWSTATUS;
+            options->action_arg = p[2];
+        }
+        else if (streq(p[1], _T("silent_connection")))
+        {
+            ++i;
+            options->action = WM_OVPN_SILENT;
+            options->action_arg = p[2] ? p[2] : _T("1");
+        }
+        else if (streq(p[1], _T("disconnect_all")))
+        {
+            options->action = WM_OVPN_STOPALL;
+        }
+        else if (streq(p[1], _T("exit")))
+        {
+            options->action = WM_OVPN_EXIT;
+        }
+        else if (streq(p[1], _T("rescan")))
+        {
+            options->action = WM_OVPN_RESCAN;
+        }
+        else
+        {
+            ShowLocalizedMsg(IDS_ERR_BAD_OPTION, p[0]);
+            exit(1);
+        }
+    }
     else
     {
         /* Unrecognized option or missing parameter */
@@ -252,7 +327,7 @@ void
 InitOptions(options_t *opt)
 {
     CLEAR(*opt);
-    opt->netcmd_semaphore = InitSemaphore ();
+    opt->netcmd_semaphore = InitSemaphore (NULL);
     opt->version = MakeVersion (PACKAGE_VERSION_RESOURCE);
     opt->clr_warning = RGB(0xff, 0, 0);
     opt->clr_error = RGB(0xff, 0, 0);
@@ -349,6 +424,18 @@ GetConnByManagement(SOCKET sk)
     for (i = 0; i < o.num_configs; ++i)
     {
         if (o.conn[i].manage.sk == sk)
+            return &o.conn[i];
+    }
+    return NULL;
+}
+
+connection_t*
+GetConnByName(const WCHAR *name)
+{
+    for (int i = 0; i < o.num_configs; ++i)
+    {
+        if (wcsicmp (o.conn[i].config_file, name) == 0
+            || wcsicmp(o.conn[i].config_name, name) == 0)
             return &o.conn[i];
     }
     return NULL;
